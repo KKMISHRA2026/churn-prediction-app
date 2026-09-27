@@ -1,11 +1,29 @@
 
+import warnings
+
 import streamlit as st
 import pandas as pd
 import joblib
 
-# Load the trained model
+
+# The model was trained with an older scikit-learn release and needs a compatibility shim
+# for the legacy pickle metadata it contains.
 def load_model():
-    return joblib.load("churn_prediction_model_v1_0.joblib")
+    try:
+        import sklearn.compose._column_transformer as column_transformer_module
+
+        if not hasattr(column_transformer_module, "_RemainderColsList"):
+            class _RemainderColsList(list):
+                pass
+
+            column_transformer_module._RemainderColsList = _RemainderColsList
+    except Exception:
+        pass
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return joblib.load("churn_prediction_model_v1_0.joblib")
+
 
 model = load_model()
 
@@ -13,7 +31,7 @@ model = load_model()
 st.title("Customer Churn Prediction App")
 st.write("This tool predicts customer churn risk based on their details. Enter the required information below.")
 
-# Collect user input based on dataset columns
+SeniorCitizen = st.selectbox("Is the customer a senior citizen?", ["Yes", "No"])
 Partner = st.selectbox("Does the customer have a partner?", ["Yes", "No"])
 Dependents = st.selectbox("Does the customer have dependents?", ["Yes", "No"])
 PhoneService = st.selectbox("Does the customer have phone service?", ["Yes", "No"])
@@ -24,17 +42,18 @@ Tenure = st.number_input("Tenure (Months with the company)", min_value=0, value=
 MonthlyCharges = st.number_input("Monthly Charges", min_value=0.0, value=50.0)
 TotalCharges = st.number_input("Total Charges", min_value=0.0, value=600.0)
 
-# Convert categorical inputs to match model training
+# Match the exact feature names and value types that the trained pipeline expects.
 input_data = pd.DataFrame([{
-    'Partner': 1 if Partner == "Yes" else 0,
-    'Dependents': 1 if Dependents == "Yes" else 0,
-    'PhoneService': 1 if PhoneService == "Yes" else 0,
-    'InternetService': InternetService,
-    'Contract': Contract,
-    'PaymentMethod': PaymentMethod,
-    'Tenure': Tenure,
-    'MonthlyCharges': MonthlyCharges,
-    'TotalCharges': TotalCharges
+    "SeniorCitizen": 1 if SeniorCitizen == "Yes" else 0,
+    "tenure": Tenure,
+    "MonthlyCharges": MonthlyCharges,
+    "TotalCharges": TotalCharges,
+    "Partner": Partner,
+    "Dependents": Dependents,
+    "PhoneService": PhoneService,
+    "InternetService": InternetService,
+    "Contract": Contract,
+    "PaymentMethod": PaymentMethod,
 }])
 
 # Set classification threshold
